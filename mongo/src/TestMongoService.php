@@ -111,6 +111,30 @@ class TestMongoService
         );
     }
 
+    public function parseDiscountsRecursive(array $product, Object $conditions): bool
+    {
+        foreach ($conditions as $condition) {
+
+            if ($condition['value'] != $product[$condition['target']]) {
+                // If the condition is not validated, we don't need to go deeper into recursivity
+                // So we test the next condition
+                continue;
+            } else {
+                if (true === isset($condition['conditions'])) {
+                    // The condition is validated, but there are more conditions to test
+                    // (the condition has condition(s))
+                    return $this->parseDiscountsRecursive($product, $condition['conditions']);
+                } else {
+                    // The condition is validated, and there is no more condition = we can return true
+                    return true;
+                }
+            }
+        }
+
+        // There is no validated condition, we return false
+        return false;
+    }
+
     // List discounts for a product
     public function parseDiscounts(array $product): void
     {
@@ -120,38 +144,13 @@ class TestMongoService
         foreach ($cursor as $discount) {
             $conditions = $discount['conditions'];
 
-            foreach ($conditions as $condition) {
-
-                if ($condition['value'] != $product[$condition['target']]) {
-                    continue;
-                }
-
-                // Sous-niveau
-                // En pratique faire du récursif pour parcourir tous les sous niveaux possibles (là j'ai la flemme juste pour tester)
-                // (ça pose aussi problème si la 1ere sous condition n'est pas bonne mais la suivante l'est, c'est facile à corriger
-                // en retournant true / false en récursif)
-                if (true === isset($condition['conditions'])) {
-                    foreach ($condition['conditions'] as $subCondition) {
-
-                        if ($subCondition['value'] != $product[$subCondition['target']]) {
-                            break 2;
-                        }
-
-                        // Since all consecutive conditions are OR we don't need the check the other ones
-                        // the code below will be enough in recursive calls
-                        break;
-                    }
-                }
-
-                // If we are here, the product match the conditions, since all consecutive conditions are OR
-                // we don't need the check the other ones
+            if (true === $this->parseDiscountsRecursive($product, $conditions)) {
                 echo 'Discount found: ' . $discount['_id'] . PHP_EOL;
-                break;
-            }
 
-            // Affiche
-            // Discount found: 5a2493c33c95a1281836eb6a
-            // Discount found: 5a2493c33c95a1281836eb6b
+                // Affiche
+                // Discount found: 5a2493c33c95a1281836eb6a
+                // Discount found: 5a2493c33c95a1281836eb6b
+            }
         }
     }
 }
